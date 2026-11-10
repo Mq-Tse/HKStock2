@@ -1,0 +1,17 @@
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+
+# 数据库备份（体积较大，仅保留本地）
+data/*.bak
+data/*.bak_*
+
+# 工具与编辑器缓存
+.screenshots/
+.trae/
+.trae-html-share-packages/
+
+# 系统文件
+.DS_Store
+Thumbs.db

@@ -1,0 +1,391 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>多标的对比 · 港股 IPO</title>
+  <script src="/static/vendor/lightweight-charts.standalone.production.js"></script>
+  <style>
+    :root {
+      --ink: #1f2933;
+      --muted: #6b7280;
+      --line: #e5e7eb;
+      --accent: #246bfd;
+      --up: #d84a4a;
+      --down: #159a74;
+      --bg: #f7f9fc;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif;
+      color: var(--ink);
+      background: var(--bg);
+      padding: 24px;
+    }
+    header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      flex-wrap: wrap;
+      margin-bottom: 20px;
+    }
+    h1 { margin: 0; font-size: 22px; }
+    .back-link { color: var(--accent); text-decoration: none; font-size: 14px; }
+    .back-link:hover { text-decoration: underline; }
+    .add-form { display: flex; gap: 8px; align-items: center; }
+    .add-form input {
+      padding: 8px 12px;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      font-size: 14px;
+      width: 140px;
+      font-family: inherit;
+    }
+    .add-form input:focus { outline: 2px solid var(--accent); border-color: var(--accent); }
+    .add-form button {
+      padding: 8px 16px;
+      background: var(--accent);
+      color: #fff;
+      border: none;
+      border-radius: 6px;
+      font-size: 14px;
+      cursor: pointer;
+      font-family: inherit;
+    }
+    .add-form button:hover { background: #1a56d1; }
+    .add-form button:disabled { background: #b2bdc9; cursor: not-allowed; }
+    .hint { color: var(--muted); font-size: 13px; margin-bottom: 16px; }
+    .empty-state {
+      text-align: center;
+      padding: 60px 20px;
+      color: var(--muted);
+      background: #fff;
+      border: 1px dashed var(--line);
+      border-radius: 8px;
+    }
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(380px, 1fr));
+      gap: 16px;
+    }
+    .card {
+      background: #fff;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      position: relative;
+    }
+    .card-header {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 8px;
+    }
+    .card-title { font-size: 16px; font-weight: 600; }
+    .card-code { color: var(--muted); font-size: 13px; margin-top: 2px; }
+    .status-badge {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 4px;
+      font-size: 11px;
+      font-weight: 500;
+      margin-left: 8px;
+    }
+    .status-listing { background: #e3f2fd; color: #1565c0; }
+    .status-delisted { background: #f3e5f5; color: #6a1b9a; }
+    .status-suspended { background: #fff3e0; color: #e65100; }
+    .status-unknown { background: #eceff1; color: #546e7a; }
+    .remove-btn {
+      background: none;
+      border: none;
+      color: var(--muted);
+      font-size: 20px;
+      cursor: pointer;
+      padding: 0;
+      width: 24px;
+      height: 24px;
+      line-height: 1;
+      border-radius: 4px;
+      flex-shrink: 0;
+    }
+    .remove-btn:hover { background: #fee; color: var(--up); }
+    .metrics { font-size: 13px; }
+    .metric-row {
+      display: flex;
+      justify-content: space-between;
+      padding: 4px 0;
+      border-bottom: 1px solid #f4f6f8;
+    }
+    .metric-row:last-child { border-bottom: none; }
+    .metric-label { color: var(--muted); }
+    .metric-value { font-weight: 500; font-variant-numeric: tabular-nums; }
+    .metric-value.up { color: var(--up); }
+    .metric-value.down { color: var(--down); }
+    .chart-container { height: 200px; width: 100%; }
+    .chart-state { color: var(--muted); font-size: 12px; text-align: center; padding: 20px 0; }
+    .card-footer { margin-top: auto; padding-top: 8px; border-top: 1px solid var(--line); }
+    .detail-link { color: var(--accent); text-decoration: none; font-size: 13px; }
+    .detail-link:hover { text-decoration: underline; }
+    .error-card { color: var(--up); font-size: 13px; }
+    .legend { font-size: 11px; color: var(--muted); display: flex; gap: 12px; flex-wrap: wrap; }
+    .legend span::before {
+      content: '';
+      display: inline-block;
+      width: 16px;
+      height: 2px;
+      vertical-align: middle;
+      margin-right: 4px;
+    }
+    .legend .issue::before { background: #b35900; }
+    .legend .first::before { background: #9aa7b5; }
+  </style>
+</head>
+<body>
+  <header>
+    <div>
+      <h1>多标的对比</h1>
+      <a href="/" class="back-link">← 返回列表</a>
+    </div>
+    <form class="add-form" id="add-form">
+      <input type="text" id="code-input" placeholder="输入5位代码" maxlength="5" pattern="\d{5}" required>
+      <button type="submit" id="add-btn">添加</button>
+    </form>
+  </header>
+  <p class="hint">最多同时对比 6 只 · URL 形如 <code>/compare?codes=00700,01810,03636</code>，可直接分享</p>
+  <div id="content"></div>
+
+  <script>
+    const MAX_CODES = 6;
+    const UP = '#d84a4a';
+    const DOWN = '#159a74';
+    const library = window.LightweightCharts;
+    const charts = [];
+
+    function getCodes() {
+      const params = new URLSearchParams(location.search);
+      const raw = params.get('codes') || '';
+      return raw.split(',').map(s => s.trim()).filter(s => /^\d{5}$/.test(s)).slice(0, MAX_CODES);
+    }
+
+    function setCodes(codes) {
+      const url = new URL(location.href);
+      if (codes.length) url.searchParams.set('codes', codes.join(','));
+      else url.searchParams.delete('codes');
+      history.replaceState(null, '', url);
+    }
+
+    function escapeHtml(s) {
+      return String(s == null ? '' : s)
+        .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+    }
+
+    function fmtPct(v) {
+      if (v === null || v === undefined) return '—';
+      return (v >= 0 ? '+' : '') + v.toFixed(2) + '%';
+    }
+    function pctClass(v) {
+      if (v === null || v === undefined) return '';
+      return v > 0 ? 'up' : v < 0 ? 'down' : '';
+    }
+    function fmtPrice(v) {
+      if (v === null || v === undefined) return '—';
+      return v.toFixed(3).replace(/\.?0+$/, '');
+    }
+
+    function statusBadge(status) {
+      const map = {
+        listing: ['已上市', 'status-listing'],
+        delisted: ['已退市', 'status-delisted'],
+        suspended: ['停牌', 'status-suspended']
+      };
+      const [label, cls] = map[status] || ['未标记', 'status-unknown'];
+      return `<span class="status-badge ${cls}">${label}</span>`;
+    }
+
+    function metricRow(label, value, cls) {
+      return `<div class="metric-row"><span class="metric-label">${label}</span><span class="metric-value ${cls || ''}">${value}</span></div>`;
+    }
+
+    function renderMetrics(info) {
+      const rows = [
+        ['上市日期', info.listing_date || '—'],
+        ['发行价', info.issue_price !== null && info.issue_price !== undefined ? fmtPrice(info.issue_price) + ' 港元' : (info.issue_note || '—')],
+        ['暗盘收盘', info.grey_close !== null && info.grey_close !== undefined ? fmtPrice(info.grey_close) : '—'],
+        ['暗盘收益', fmtPct(info.grey_return), pctClass(info.grey_return)],
+        ['首日收盘', info.first_close !== null && info.first_close !== undefined ? fmtPrice(info.first_close) : '—'],
+        ['首日收益', fmtPct(info.first_day_return), pctClass(info.first_day_return)],
+        ['最新价', info.latest_price !== null && info.latest_price !== undefined ? fmtPrice(info.latest_price) : '—'],
+        ['至今收益', fmtPct(info.to_date_return), pctClass(info.to_date_return)]
+      ];
+      if (info.to_date_return_adj !== null && info.to_date_return_adj !== undefined
+          && info.adj_factor && Math.abs(info.adj_factor - 1) > 0.01) {
+        rows.push(['复权至今', fmtPct(info.to_date_return_adj), pctClass(info.to_date_return_adj)]);
+      }
+      return rows.map(([label, value, cls]) => metricRow(label, value, cls)).join('');
+    }
+
+    function disposeCharts() {
+      while (charts.length) {
+        try { charts.pop().remove(); } catch (e) { /* ignore */ }
+      }
+    }
+
+    function renderChart(container, info, kline) {
+      if (!library) {
+        container.innerHTML = '<div class="chart-state">图表库加载失败</div>';
+        return;
+      }
+      if (!kline || !kline.items || !kline.items.length) {
+        container.innerHTML = '<div class="chart-state">暂无 K 线数据</div>';
+        return;
+      }
+      const chart = library.createChart(container, {
+        layout: { background: { type: 'solid', color: '#fff' }, textColor: '#6b7280', fontSize: 10 },
+        grid: { vertLines: { color: '#f4f6f8' }, horzLines: { color: '#f4f6f8' } },
+        rightPriceScale: { borderColor: '#e5e7eb' },
+        timeScale: { borderColor: '#e5e7eb', timeVisible: false },
+        crosshair: { mode: 0 }
+      });
+      charts.push(chart);
+      const candles = chart.addCandlestickSeries({
+        upColor: UP, downColor: DOWN,
+        wickUpColor: UP, wickDownColor: DOWN,
+        borderVisible: false, priceLineVisible: false,
+        priceFormat: { type: 'price', precision: 3, minMove: 0.001 }
+      });
+      candles.setData(kline.items.map(b => ({
+        time: b.time, open: b.open, high: b.high, low: b.low, close: b.close
+      })));
+      if (info.issue_price !== null && info.issue_price !== undefined) {
+        candles.createPriceLine({
+          price: info.issue_price, color: '#b35900', lineWidth: 1,
+          lineStyle: library.LineStyle.Solid, axisLabelVisible: false, title: '发行价'
+        });
+      }
+      if (info.first_close !== null && info.first_close !== undefined && info.first_close !== info.issue_price) {
+        candles.createPriceLine({
+          price: info.first_close, color: '#9aa7b5', lineWidth: 1,
+          lineStyle: library.LineStyle.Dashed, axisLabelVisible: false, title: '首日'
+        });
+      }
+      chart.timeScale().fitContent();
+    }
+
+    async function loadOne(code, content) {
+      const card = document.createElement('div');
+      card.className = 'card';
+      card.dataset.code = code;
+      card.innerHTML = `
+        <div class="card-header">
+          <div>
+            <div class="card-title">加载中…</div>
+            <div class="card-code">${code}</div>
+          </div>
+          <button class="remove-btn" data-code="${code}" title="移除">×</button>
+        </div>
+        <div class="chart-state">正在获取数据…</div>`;
+      content.appendChild(card);
+
+      let info, kline, infoErr = null, klineErr = null;
+      try {
+        const r = await fetch(`/api/stock/${code}`, { cache: 'no-store' });
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        info = await r.json();
+      } catch (e) { infoErr = e.message; }
+      try {
+        const r = await fetch(`/api/stock/${code}/kline?period=day`, { cache: 'no-store' });
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        kline = await r.json();
+      } catch (e) { klineErr = e.message; }
+
+      if (infoErr) {
+        card.innerHTML = `
+          <div class="card-header">
+            <div><div class="card-title">${code}</div></div>
+            <button class="remove-btn" data-code="${code}" title="移除">×</button>
+          </div>
+          <div class="error-card">获取失败：${escapeHtml(infoErr)}</div>`;
+        return;
+      }
+
+      card.innerHTML = `
+        <div class="card-header">
+          <div>
+            <div class="card-title">${escapeHtml(info.name || code)}${statusBadge(info.market_status)}</div>
+            <div class="card-code">${code}</div>
+          </div>
+          <button class="remove-btn" data-code="${code}" title="移除">×</button>
+        </div>
+        <div class="metrics">${renderMetrics(info)}</div>
+        <div class="legend"><span class="issue">发行价</span><span class="first">首日收盘</span></div>
+        <div class="chart-container"></div>
+        ${klineErr ? `<div class="chart-state">K 线获取失败：${escapeHtml(klineErr)}</div>` : ''}
+        <div class="card-footer"><a class="detail-link" href="/stock/${code}" target="_blank">查看详情 →</a></div>`;
+      if (!klineErr) {
+        renderChart(card.querySelector('.chart-container'), info, kline);
+      }
+    }
+
+    async function render() {
+      disposeCharts();
+      const content = document.getElementById('content');
+      content.innerHTML = '';
+      const codes = getCodes();
+      document.getElementById('add-btn').disabled = codes.length >= MAX_CODES;
+      if (!codes.length) {
+        content.innerHTML = `
+          <div class="empty-state">
+            <p>尚未选择标的</p>
+            <p>在上方输入框输入 5 位港股代码（如 00700）点击「添加」，或直接访问带参数 URL：</p>
+            <p><code>/compare?codes=00700,01810</code></p>
+          </div>`;
+        return;
+      }
+      const grid = document.createElement('div');
+      grid.className = 'grid';
+      content.appendChild(grid);
+      await Promise.all(codes.map(code => loadOne(code, grid)));
+    }
+
+    document.getElementById('add-form').addEventListener('submit', e => {
+      e.preventDefault();
+      const input = document.getElementById('code-input');
+      const code = input.value.trim();
+      if (!/^\d{5}$/.test(code)) { alert('请输入5位数字代码'); return; }
+      const codes = getCodes();
+      if (codes.includes(code)) { alert('该代码已在对比列表中'); return; }
+      if (codes.length >= MAX_CODES) { alert(`最多同时对比 ${MAX_CODES} 只`); return; }
+      codes.push(code);
+      setCodes(codes);
+      input.value = '';
+      render();
+    });
+
+    document.addEventListener('click', e => {
+      const btn = e.target.closest('.remove-btn');
+      if (!btn) return;
+      const code = btn.dataset.code;
+      setCodes(getCodes().filter(c => c !== code));
+      render();
+    });
+
+    let resizeTimer;
+    window.addEventListener('resize', () => {
+      clearTimeout(resizeTimer);
+      resizeTimer = setTimeout(() => {
+        document.querySelectorAll('.chart-container').forEach(c => {
+          // lightweight-charts 自适应由 chart.applyOptions 触发，简单起见整页重渲染 K 线尺寸
+        });
+      }, 200);
+    });
+
+    render();
+  </script>
+</body>
+</html>
